@@ -36,11 +36,16 @@ case "$target" in
         options+=(--enable-tcg-interpreter)
         export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
         libffi_prefix=$(brew --prefix libffi)
-        ffi_include=$(find "$libffi_prefix" -name ffi.h -type f -print -quit | xargs dirname)
+        export PKG_CONFIG_PATH="$libffi_prefix/lib/pkgconfig:$libffi_prefix/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+        ffi_include=$(pkg-config --variable=includedir libffi 2>/dev/null || true)
+        if ! test -f "$ffi_include/ffi.h"; then
+            ffi_include=$(find -L "$libffi_prefix" -name ffi.h -type f -print -quit)
+            ffi_include=${ffi_include%/*}
+        fi
         test -f "$ffi_include/ffi.h"
         export CPPFLAGS="${CPPFLAGS:-} -I$ffi_include"
         export CFLAGS="${CFLAGS:-} -I$ffi_include"
-        export PKG_CONFIG_PATH="$libffi_prefix/lib/pkgconfig:$libffi_prefix/share/pkgconfig:${PKG_CONFIG_PATH:-}" ;;
+        ;;
     windows-*) suffix=dll; jni_os=win32; shared=(-shared)
         export CC=clang CXX=clang++
         JAVA_HOME=$(cygpath -u "$JAVA_HOME")
