@@ -24,6 +24,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu-main.h"
+#include "qemu/datadir.h"
 #include "qemu/main-loop.h"
 #include "system/replay.h"
 #include "system/system.h"
@@ -135,6 +136,15 @@ QEMU_CLI_EXPORT int dll_main(int argc, char **argv)
     directory = g_path_get_dirname(info.dli_fname);
 #endif
     qemu_set_exec_dir(directory);
+    /*
+     * Shared-library callers do not have an executable in the installed
+     * bindir, so the normal relocatable-path lookup can be unavailable on
+     * Windows (where the configured prefix is a drive-qualified path).
+     * The release bundle always keeps firmware in ../share/qemu relative to
+     * the native library; register that path explicitly before qemu_init().
+     */
+    qemu_add_data_dir(g_build_filename(directory, "..", "share", "qemu",
+                                       NULL));
     return qemu_cli_main(argc, argv);
 }
 

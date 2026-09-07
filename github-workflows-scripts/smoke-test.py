@@ -95,7 +95,10 @@ def main(assets):
     spec.loader.exec_module(assembly)
     suffix = ".dll" if target.startswith("windows") else ".dylib" if target.startswith("macos") else ".so"
     archive = assets / (f"qemu-{target}.zip" if target.startswith("windows") else f"qemu-{target}.tar.gz")
-    with tempfile.TemporaryDirectory(prefix="qemu smoke café ") as temporary:
+    # Windows may retain a mapped DLL briefly after a child process exits;
+    # tolerate that transient lock while cleaning the smoke-test cache.
+    with tempfile.TemporaryDirectory(prefix="qemu smoke café ",
+                                      ignore_cleanup_errors=(os.name == "nt")) as temporary:
         work = Path(temporary)
         assembly.extract(archive, work)
         payload = work / "qemu"
