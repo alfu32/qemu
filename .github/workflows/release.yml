@@ -1,0 +1,161 @@
+name: QEMU native libraries and CLI facades
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: Optional release tag to create/update (empty = workflow artifacts only)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: ${{ matrix.id }} (all system guests)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: linux-x86_64
+            runner: ubuntu-22.04
+          - id: linux-aarch64
+            runner: ubuntu-22.04-arm
+          - id: macos-x86_64
+            runner: macos-15-intel
+          - id: macos-aarch64
+            runner: macos-15
+          - id: windows-x86_64
+            runner: windows-2025
+            msystem: CLANG64
+            package_prefix: mingw-w64-clang-x86_64
+          - id: windows-aarch64
+            runner: windows-11-arm
+            msystem: CLANGARM64
+            package_prefix: mingw-w64-clang-aarch64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        if: runner.os != 'Windows'
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: ${{ contains(matrix.id, 'aarch64') && 'aarch64' || 'x64' }}
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build pkg-config python3-venv flex bison \
+            libglib2.0-dev libpixman-1-dev libfdt-dev libslirp-dev zlib1g-dev patchelf
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja pkgconf glib pixman dtc libslirp libffi python flex bison
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+      - name: Install Windows build dependencies
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          path-type: inherit
+          install: >-
+            make git diffutils bzip2 flex bison
+            ${{ matrix.package_prefix }}-clang
+            ${{ matrix.package_prefix }}-llvm
+            ${{ matrix.package_prefix }}-lld
+            ${{ matrix.package_prefix }}-ninja
+            ${{ matrix.package_prefix }}-pkgconf
+            ${{ matrix.package_prefix }}-python
+            ${{ matrix.package_prefix }}-python-pip
+            ${{ matrix.package_prefix }}-glib2
+            ${{ matrix.package_prefix }}-pixman
+            ${{ matrix.package_prefix }}-dtc
+            ${{ matrix.package_prefix }}-libslirp
+            ${{ matrix.package_prefix }}-zlib
+      - name: Build Unix native bundle
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash github-workflows-scripts/package-native.sh '${{ matrix.id }}' build/native
+      - name: Build Windows native bundle
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: bash github-workflows-scripts/package-native.sh '${{ matrix.id }}' build/native
+      - name: Test Unix libraries and facades
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          python3 github-workflows-scripts/build-launchers.py build/native build/smoke --single-host
+          python3 github-workflows-scripts/smoke-test.py build/smoke
+      - name: Test Windows libraries and facades
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          python3 github-workflows-scripts/build-launchers.py build/native build/smoke --single-host
+          python3 github-workflows-scripts/smoke-test.py build/smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qemu-${{ matrix.id }}
+          path: build/native/qemu-*
+          compression-level: 0
+          if-no-files-found: error
+
+  facades:
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: qemu-*
+          path: build/native
+          merge-multiple: true
+      - name: Assemble all six hosts into the facades
+        run: python3 github-workflows-scripts/build-launchers.py build/native build/assets
+      - name: Test final combined facades
+        run: python3 github-workflows-scripts/smoke-test.py build/assets
+      - name: Record checksums
+        working-directory: build/assets
+        run: sha256sum qemu-* qemu.pyz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qemu-release
+          path: build/assets/*
+          compression-level: 0
+          if-no-files-found: error
+
+  publish:
+    if: inputs.release_name != ''
+    needs: facades
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: qemu-release
+          path: build/assets
+      - name: Publish verified artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_name }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" build/assets/* --clobber
+          else
+            gh release create "$TAG" build/assets/* --target "$GITHUB_SHA" --generate-notes
+          fi

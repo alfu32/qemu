@@ -20,4 +20,7 @@
  */
 extern int (*qemu_main)(void);
 
+/* Override relocation before qemu_init() when invoked from a shared library. */
+void qemu_set_exec_dir(const char *directory);
+
 #endif /* QEMU_MAIN_H */

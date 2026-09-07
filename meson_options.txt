@@ -47,6 +47,8 @@ option('docs', type : 'feature', value : 'auto',
        description: 'Documentations build support')
 option('fuzzing', type : 'boolean', value: false,
        description: 'build fuzzing targets')
+option('cli_dll', type : 'boolean', value: false,
+       description: 'Build system emulator shared libraries with main/dll_main entry points')
 option('gettext', type : 'feature', value : 'auto',
        description: 'Localization of the GTK+ user interface')
 option('modules', type : 'feature', value : 'disabled',

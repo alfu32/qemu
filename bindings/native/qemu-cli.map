@@ -1,0 +1,4 @@
+{
+    global: main; dll_main;
+    local: *;
+};

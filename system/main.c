@@ -28,6 +28,13 @@
 #include "system/replay.h"
 #include "system/system.h"
 
+#ifdef QEMU_CLI_DLL
+#include "../bindings/native/qemu-cli.h"
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
+#endif
+
 #ifdef CONFIG_SDL
 /*
  * SDL insists on wrapping the main() function with its own implementation on
@@ -57,7 +64,7 @@ static void *qemu_default_main(void *opaque)
 
 int (*qemu_main)(void);
 
-#ifdef CONFIG_DARWIN
+#if defined(CONFIG_DARWIN) && !defined(CONFIG_CLI_DLL)
 static int os_darwin_cfrunloop_main(void)
 {
     CFRunLoopRun();
@@ -66,7 +73,7 @@ static int os_darwin_cfrunloop_main(void)
 int (*qemu_main)(void) = os_darwin_cfrunloop_main;
 #endif
 
-int main(int argc, char **argv)
+static int qemu_cli_main(int argc, char **argv)
 {
     qemu_init(argc, argv);
 
@@ -94,3 +101,50 @@ int main(int argc, char **argv)
         g_assert_not_reached();
     }
 }
+
+#ifdef QEMU_CLI_DLL
+/* The interpreter/JVM executable is not the QEMU installation directory. */
+QEMU_CLI_EXPORT int dll_main(int argc, char **argv)
+{
+    g_autofree char *directory = NULL;
+#ifdef _WIN32
+    HMODULE module;
+    wchar_t path[32768];
+    DWORD length;
+    g_autofree char *utf8 = NULL;
+
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            (LPCWSTR)&dll_main, &module)) {
+        return EXIT_FAILURE;
+    }
+    length = GetModuleFileNameW(module, path, G_N_ELEMENTS(path));
+    if (!length || length >= G_N_ELEMENTS(path)) {
+        return EXIT_FAILURE;
+    }
+    utf8 = g_utf16_to_utf8((gunichar2 *)path, length, NULL, NULL, NULL);
+    if (!utf8) {
+        return EXIT_FAILURE;
+    }
+    directory = g_path_get_dirname(utf8);
+#else
+    Dl_info info;
+    if (!dladdr((void *)&dll_main, &info)) {
+        return EXIT_FAILURE;
+    }
+    directory = g_path_get_dirname(info.dli_fname);
+#endif
+    qemu_set_exec_dir(directory);
+    return qemu_cli_main(argc, argv);
+}
+
+QEMU_CLI_EXPORT int main(int argc, char **argv)
+{
+    return dll_main(argc, argv);
+}
+#else
+int main(int argc, char **argv)
+{
+    return qemu_cli_main(argc, argv);
+}
+#endif

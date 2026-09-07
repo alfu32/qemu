@@ -51,6 +51,7 @@
 #include "qemu/ctype.h"
 #include "qemu/cutils.h"
 #include "qemu/error-report.h"
+#include "qemu-main.h"
 
 void strpadcpy(char *buf, int buf_size, const char *str, char pad)
 {
@@ -1029,6 +1030,12 @@ static inline const char *next_component(const char *dir, int *p_len)
 }
 
 static const char *exec_dir;
+
+void qemu_set_exec_dir(const char *directory)
+{
+    assert(!exec_dir);
+    exec_dir = g_strdup(directory);
+}
 
 void qemu_init_exec_dir(const char *argv0)
 {

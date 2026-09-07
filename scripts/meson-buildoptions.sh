@@ -27,6 +27,8 @@ meson_options_help() {
   printf "%s\n" '                           QEMU'
   printf "%s\n" '  --enable-cfi             Control-Flow Integrity (CFI)'
   printf "%s\n" '  --enable-cfi-debug       Verbose errors in case of CFI violation'
+  printf "%s\n" '  --enable-cli-dll         Build system emulator shared libraries with'
+  printf "%s\n" '                           main/dll_main entry points'
   printf "%s\n" '  --enable-debug-graph-lock'
   printf "%s\n" '                           graph lock debugging support'
   printf "%s\n" '  --enable-debug-mutex     mutex debugging support'
@@ -275,6 +277,8 @@ _meson_option_parse() {
     --disable-cfi) printf "%s" -Dcfi=false ;;
     --enable-cfi-debug) printf "%s" -Dcfi_debug=true ;;
     --disable-cfi-debug) printf "%s" -Dcfi_debug=false ;;
+    --enable-cli-dll) printf "%s" -Dcli_dll=true ;;
+    --disable-cli-dll) printf "%s" -Dcli_dll=false ;;
     --enable-cloop) printf "%s" -Dcloop=enabled ;;
     --disable-cloop) printf "%s" -Dcloop=disabled ;;
     --enable-cocoa) printf "%s" -Dcocoa=enabled ;;

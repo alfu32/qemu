@@ -29,6 +29,14 @@ ss = import('sourceset')
 fs = import('fs')
 
 host_os = host_machine.system()
+if get_option('cli_dll')
+  if not get_option('b_staticpic')
+    error('cli_dll requires -Db_staticpic=true')
+  endif
+  if get_option('modules').enabled() or get_option('plugins')
+    error('cli_dll requires modules and plugins to be disabled')
+  endif
+endif
 config_host = keyval.load(meson.current_build_dir() / 'config-host.mak')
 
 # Temporary directory used for files created while
@@ -2436,6 +2444,7 @@ config_host_data.set('CONFIG_FREEBSD', host_os == 'freebsd')
 config_host_data.set('CONFIG_CAPSTONE', capstone.found())
 config_host_data.set('CONFIG_COCOA', cocoa.found())
 config_host_data.set('CONFIG_DARWIN', host_os == 'darwin')
+config_host_data.set('CONFIG_CLI_DLL', get_option('cli_dll'))
 config_host_data.set('CONFIG_FDT', fdt.found())
 config_host_data.set('CONFIG_FUZZ', get_option('fuzzing'))
 config_host_data.set('CONFIG_GCOV', get_option('b_coverage'))
@@ -4416,6 +4425,28 @@ foreach target : target_dirs
       'sources': [main_rs, files('system/main.c')],
       'dependencies': [sdl, target_stubs],
     }]
+    if get_option('cli_dll')
+      if sdl.found() or gtk.found() or cocoa.found()
+        error('cli_dll currently supports headless builds; disable SDL, GTK and Cocoa')
+      endif
+      dll_link_args = []
+      if host_os == 'linux'
+        dll_link_args += ['-Wl,-Bsymbolic',
+                         '-Wl,--version-script=' + meson.project_source_root() / 'bindings/native/qemu-cli.map']
+      elif host_os == 'darwin'
+        dll_link_args += ['-Wl,-exported_symbol,_main', '-Wl,-exported_symbol,_dll_main']
+      endif
+      shared_library('qemu-system-' + target_name, [main_rs, files('system/main.c')],
+                     name_prefix: 'lib',
+                     install: true,
+                     install_dir: get_option('bindir'),
+                     install_rpath: host_os == 'darwin' ? '@loader_path' : '$ORIGIN',
+                     c_args: c_args + ['-DQEMU_CLI_DLL'],
+                     dependencies: arch_deps + [target_stubs],
+                     objects: lib.extract_all_objects(recursive: true),
+                     link_args: dll_link_args,
+                     link_depends: files('bindings/native/qemu-cli.map'))
+    endif
     if host_os == 'windows' and (sdl.found() or gtk.found())
       execs += [{
         'name': 'qemu-system-' + target_name + 'w',

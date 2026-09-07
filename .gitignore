@@ -1,5 +1,11 @@
 /GNUmakefile
 /build/
+# Cargo's generated output is placed beneath QEMU's tracked target/ sources.
+/target/debug/
+/target/release/
+/target/.rustc_info.json
+/target/CACHEDIR.TAG
+/target/flycheck*/
 /.cache/
 /.vscode/
 *.pyc
