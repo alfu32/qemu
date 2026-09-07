@@ -2,6 +2,7 @@
 # Run on the target host; Windows uses MSYS2 CLANG64/CLANGARM64.
 # Usage: bash github-workflows-scripts/package-native.sh <host-id> <output-dir>
 set -euo pipefail
+set -x
 root=$(cd "$(dirname "$0")/.." && pwd)
 target=${1:?host id required}
 case "$target" in

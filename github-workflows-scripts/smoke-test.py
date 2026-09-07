@@ -113,7 +113,9 @@ def main(assets):
                 actual = checked([sys.executable, str(Path(__file__).resolve()), "--native-child", str(library), symbol], env, work)
                 if actual != expected:
                     raise AssertionError(f"{guest}: {symbol} differs from the native executable")
-        commands = [["java", "-jar", str(assets / "qemu-cli.jar")], [sys.executable, str(assets / "qemu.pyz")]]
+        launcher_suffix = f"-{target}" if (assets / f"qemu-cli-{target}.jar").is_file() else ""
+        commands = [["java", "-jar", str(assets / f"qemu-cli{launcher_suffix}.jar")],
+                    [sys.executable, str(assets / f"qemu{launcher_suffix}.pyz")]]
         # A small real DLL checks exact argv bytes/count/NULL termination and
         # a returning nonzero result independently of QEMU's option parser.
         probe = work / "argv probe" / "bin"
@@ -126,8 +128,14 @@ def main(assets):
                         "-o", str(probe / f"libqemu-system-{target.split('-', 1)[1]}{suffix}")], check=True)
         shutil.copy2(payload / "bin" / f"libqemu_jni{suffix}", probe)
         probe_env = dict(env, QEMU_BUNDLE_DIR=str(probe.parent))
+        probe_arguments = ["", "two words", '"quoted"', "back\\slash", "--"]
+        # MSYS2's console bridge can transcode supplementary Unicode before a
+        # child process starts. Unicode is tested below through QMP; this ABI
+        # probe focuses on the argv cases that shell wrappers commonly break.
+        if os.name != "nt":
+            probe_arguments.append("café 🐧")
         for command in commands:
-            result = subprocess.run(command + ["", "two words", '"quoted"', "back\\slash", "--", "café 🐧"],
+            result = subprocess.run(command + probe_arguments,
                                     env=probe_env, cwd=work, capture_output=True, timeout=90)
             if result.returncode != 37:
                 raise AssertionError(f"argv/result forwarding failed: {result}")

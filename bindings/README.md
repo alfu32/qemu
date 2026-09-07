@@ -16,14 +16,14 @@ relative to itself, even when loaded by Java or Python; keep the bundle intact.
 
 ## Running the facades
 
-Requires Java 17+ or Python 3.10+. Both release facades embed all six host
-payloads and automatically select the current process's OS/CPU architecture.
+Requires Java 17+ or Python 3.10+. Each platform-specific facade contains the
+native payload for its own OS/CPU architecture.
 
 ```sh
-java -jar qemu-cli.jar --version
-python3 qemu.pyz --version
-QEMU_GUEST=riscv64 java -jar qemu-cli.jar -machine virt -display none -S
-QEMU_GUEST=aarch64 python3 qemu.pyz -machine virt -cpu cortex-a57 -display none -S
+java -jar qemu-cli-linux-x86_64.jar --version
+python3 qemu-linux-x86_64.pyz --version
+QEMU_GUEST=riscv64 java -jar qemu-cli-linux-x86_64.jar -machine virt -display none -S
+QEMU_GUEST=aarch64 python3 qemu-linux-x86_64.pyz -machine virt -cpu cortex-a57 -display none -S
 ```
 
 On PowerShell, set e.g. `$env:QEMU_GUEST = 'riscv64'` before launching.
@@ -64,9 +64,9 @@ macOS 15. Windows CI uses MSYS2 CLANG64/CLANGARM64 on Windows 11/Server 2025.
 Run `.github/workflows/release.yml` manually. With an empty `release_name`, it
 only produces workflow artifacts. Supplying a tag also creates/updates that
 GitHub release after every host passes its native and facade smoke tests.
-The downloadable files are the six `qemu-<os>-<arch>` native archives,
-`qemu-cli.jar`, `qemu.pyz`, and `SHA256SUMS`. The jar also exposes `org.qemu.Qemu.run`;
-a second, identical embedding jar is unnecessary.
+Each host/CPU job publishes its native archive plus matching
+`qemu-cli-<os>-<arch>.jar` and `qemu-<os>-<arch>.pyz`. Both contain only that
+host's native payload. The jar also exposes `org.qemu.Qemu.run`.
 
 The matrix builds natively on each OS/CPU runner rather than trying to cross
 link macOS or Windows libraries on Linux. This permits actual FFI smoke tests

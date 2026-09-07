@@ -92,12 +92,13 @@ def build(archive_dir, output_dir, single_host=False):
         classes.mkdir()
         sources = sorted((ROOT / "bindings/jvm/src/main/java").rglob("*.java"))
         subprocess.run(["javac", "--release", "17", "-d", str(classes), *map(str, sources)], check=True)
-        subprocess.run(["jar", "--create", "--file", str(output_dir / "qemu-cli.jar"),
+        output_suffix = f"-{next(iter(archives))}" if single_host else ""
+        subprocess.run(["jar", "--create", "--file", str(output_dir / f"qemu-cli{output_suffix}.jar"),
                         "--main-class", "org.qemu.cli.Main", "-C", str(classes), ".",
                         "-C", str(resources), "."], check=True)
         # Stream the same resources into the zipapp without duplicating several
         # gigabytes on the CI runner's disk. zipfile enables ZIP64 by default.
-        with zipfile.ZipFile(output_dir / "qemu.pyz", "w", zipfile.ZIP_DEFLATED) as app:
+        with zipfile.ZipFile(output_dir / f"qemu{output_suffix}.pyz", "w", zipfile.ZIP_DEFLATED) as app:
             app.writestr("__main__.py", "from qemu.__main__ import main\nmain()\n")
             for file in sorted((ROOT / "bindings/python/qemu").glob("*.py")):
                 app.write(file, "qemu/" + file.name)

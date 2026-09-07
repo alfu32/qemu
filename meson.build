@@ -4474,7 +4474,7 @@ foreach target : target_dirs
   endif
   foreach exe: execs
     exe_name = exe['name']
-    if host_os == 'darwin'
+    if host_os == 'darwin' and not get_option('cli_dll')
       exe_name += '-unsigned'
     endif
 
@@ -4487,7 +4487,7 @@ foreach target : target_dirs
                link_args: link_args,
                win_subsystem: exe['win_subsystem'])
 
-    if host_os == 'darwin'
+    if host_os == 'darwin' and not get_option('cli_dll')
       icon = 'pc-bios/qemu.rsrc'
       build_input = [emulator, files(icon)]
       install_input = [

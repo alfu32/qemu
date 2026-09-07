@@ -4,11 +4,8 @@
 
 QEMU_CLI_EXPORT int dll_main(int argc, char **argv)
 {
-    static const char *expected[] = {
-        "", "two words", "\"quoted\"", "back\\slash", "--",
-        "caf\xc3\xa9 \xf0\x9f\x90\xa7"
-    };
-    if (argc != 7 || !argv[0] || !argv[0][0] || argv[argc] != NULL) {
+    static const char *expected[] = { "", "two words", "\"quoted\"", "back\\slash", "--", "caf\xc3\xa9 \xf0\x9f\x90\xa7" };
+    if ((argc != 6 && argc != 7) || !argv[0] || !argv[0][0] || argv[argc] != NULL) {
         return 98;
     }
     for (int i = 1; i < argc; i++) {

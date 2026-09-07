@@ -11,7 +11,7 @@ import zipfile
 
 
 def command(*args):
-    return subprocess.check_output(list(map(str, args)), text=True)
+    return subprocess.check_output(list(map(str, args)), text=True, stderr=subprocess.STDOUT)
 
 
 def bundle(target, payload, output):
