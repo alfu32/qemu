@@ -56,7 +56,7 @@ public final class Qemu {
                 ? Path.of(System.getProperty("user.home"), ".cache", "qemu-cli") : Path.of(cache);
         Path root = base.toAbsolutePath().resolve(target).resolve(hash(manifest));
         Files.createDirectories(root);
-        for (String line : new String(manifest, StandardCharsets.UTF_8).split("\n")) {
+        for (String line : new String(manifest, StandardCharsets.UTF_8).split("\\R")) {
             if (line.isEmpty()) continue;
             String[] fields = line.split("  ", 2);
             if (fields.length != 2 || !fields[0].matches("[a-f0-9]{64}")) {

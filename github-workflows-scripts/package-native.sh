@@ -35,7 +35,12 @@ case "$target" in
         # TCI also works with Python installations lacking JIT entitlements.
         options+=(--enable-tcg-interpreter)
         export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
-        export PKG_CONFIG_PATH="$(brew --prefix libffi)/lib/pkgconfig:${PKG_CONFIG_PATH:-}" ;;
+        libffi_prefix=$(brew --prefix libffi)
+        ffi_include=$(find "$libffi_prefix" -name ffi.h -type f -print -quit | xargs dirname)
+        test -f "$ffi_include/ffi.h"
+        export CPPFLAGS="${CPPFLAGS:-} -I$ffi_include"
+        export CFLAGS="${CFLAGS:-} -I$ffi_include"
+        export PKG_CONFIG_PATH="$libffi_prefix/lib/pkgconfig:$libffi_prefix/share/pkgconfig:${PKG_CONFIG_PATH:-}" ;;
     windows-*) suffix=dll; jni_os=win32; shared=(-shared)
         export CC=clang CXX=clang++
         JAVA_HOME=$(cygpath -u "$JAVA_HOME")
