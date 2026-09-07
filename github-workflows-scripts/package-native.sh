@@ -17,7 +17,7 @@ mkdir -p "$build"
 stage=$(mktemp -d "$build/stage.XXXXXX")
 trap 'rm -rf "$stage"' EXIT
 
-options=(--prefix=/qemu --bindir=bin --libdir=lib --datadir=share
+options=(--bindir=bin --libdir=lib --datadir=share
     --without-default-features --enable-system --disable-user --with-suffix=qemu
     --enable-tcg --enable-fdt --enable-slirp --enable-pixman
     --enable-vnc --enable-install-blobs --disable-docs --disable-tools
@@ -29,7 +29,8 @@ if [[ -n ${QEMU_TARGET_LIST:-} ]]; then
     options+=("--target-list=$QEMU_TARGET_LIST")
 fi
 case "$target" in
-    linux-*) suffix=so; jni_os=linux; shared=(-shared -fPIC -ldl) ;;
+    linux-*) suffix=so; jni_os=linux; shared=(-shared -fPIC -ldl)
+        options+=(--prefix=/qemu) ;;
     macos-*) suffix=dylib; jni_os=darwin; shared=(-dynamiclib -fPIC)
         # A JVM can already own the hardened runtime's sole MAP_JIT region.
         # TCI also works with Python installations lacking JIT entitlements.
@@ -45,6 +46,7 @@ case "$target" in
         test -f "$ffi_include/ffi.h"
         export CPPFLAGS="${CPPFLAGS:-} -I$ffi_include"
         export CFLAGS="${CFLAGS:-} -I$ffi_include"
+        options+=(--prefix=/qemu)
         ;;
     windows-*) suffix=dll; jni_os=win32; shared=(-shared)
         export CC=clang CXX=clang++
@@ -61,6 +63,19 @@ make -j"$jobs"
 DESTDIR="$stage" "$build/pyvenv/bin/meson" install --no-rebuild
 payload="$stage/qemu"
 test -d "$payload/bin"
+# Some MSYS2/Windows Meson installs can stage executables correctly while
+# dropping the data directory when DESTDIR is combined with a drive-qualified
+# prefix.  Keep the release self-contained even in that case: restore the
+# source firmware blobs and any generated EDK2 images that were built.
+firmware="$payload/share/qemu"
+mkdir -p "$firmware"
+for blob in "$root"/pc-bios/* "$build"/pc-bios/*; do
+    if test -f "$blob" && [[ "$blob" != *.bz2 ]]; then
+        name=${blob##*/}
+        test -e "$firmware/$name" || cp "$blob" "$firmware/$name"
+    fi
+done
+test -f "$firmware/bios-256k.bin"
 "${CC:-cc}" -O2 "$root/bindings/native/qemu_jni.c" \
     -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/$jni_os" \
     "${shared[@]}" -o "$payload/bin/libqemu_jni.$suffix"
