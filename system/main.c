@@ -24,7 +24,6 @@
 
 #include "qemu/osdep.h"
 #include "qemu-main.h"
-#include "qemu/datadir.h"
 #include "qemu/main-loop.h"
 #include "system/replay.h"
 #include "system/system.h"
@@ -108,6 +107,8 @@ static int qemu_cli_main(int argc, char **argv)
 QEMU_CLI_EXPORT int dll_main(int argc, char **argv)
 {
     g_autofree char *directory = NULL;
+    g_autofree char *firmware = NULL;
+    g_autofree char **forwarded = NULL;
 #ifdef _WIN32
     HMODULE module;
     wchar_t path[32768];
@@ -141,11 +142,22 @@ QEMU_CLI_EXPORT int dll_main(int argc, char **argv)
      * bindir, so the normal relocatable-path lookup can be unavailable on
      * Windows (where the configured prefix is a drive-qualified path).
      * The release bundle always keeps firmware in ../share/qemu relative to
-     * the native library; register that path explicitly before qemu_init().
+     * the native library.
      */
-    qemu_add_data_dir(g_build_filename(directory, "..", "share", "qemu",
-                                       NULL));
-    return qemu_cli_main(argc, argv);
+    firmware = g_build_filename(directory, "..", "share", "qemu", NULL);
+    /*
+     * Also register the path through QEMU's normal option parser.  This is
+     * deliberately internal: callers still pass their original argv intact,
+     * but Windows DLL callers do not depend on executable-prefix relocation
+     * to find firmware in an extracted facade bundle.
+    */
+    forwarded = g_new(char *, argc + 3);
+    forwarded[0] = argv[0];
+    forwarded[1] = (char *)"-L";
+    forwarded[2] = firmware;
+    memcpy(&forwarded[3], &argv[1], sizeof(char *) * (argc - 1));
+    forwarded[argc + 2] = NULL;
+    return qemu_cli_main(argc + 2, forwarded);
 }
 
 QEMU_CLI_EXPORT int main(int argc, char **argv)
