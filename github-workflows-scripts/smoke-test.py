@@ -36,12 +36,12 @@ def checked(command, env, cwd):
     return result.stdout
 
 
-def vm_test(command, guest, env, cwd):
+def vm_test(command, guest, env, cwd, firmware_dir):
     name = "ffi spaces café 🐧"
     machine = ["-machine", "pc"] if guest == "x86_64" else ["-machine", "virt", "-cpu", "cortex-a57"]
     if guest == "aarch64":
         machine += ["-bios", "edk2-aarch64-code.fd"]
-    args = machine + ["-accel", "tcg", "-m", "256", "-display", "none", "-nodefaults",
+    args = ["-L", str(firmware_dir)] + machine + ["-accel", "tcg", "-m", "256", "-display", "none", "-nodefaults",
                       "-S", "-name", name, "-qmp", "stdio"]
     process = subprocess.Popen(command + args, env=env, cwd=cwd, stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -102,6 +102,10 @@ def main(assets):
         work = Path(temporary)
         assembly.extract(archive, work)
         payload = work / "qemu"
+        firmware = payload / "share" / "qemu"
+        bios = firmware / "bios-256k.bin"
+        if not bios.is_file():
+            raise AssertionError(f"native archive is missing {bios.relative_to(payload)}")
         guests = (payload / "guests.txt").read_text().splitlines()
         env = dict(os.environ, QEMU_CACHE_DIR=str(work / "cache"))
         env.pop("QEMU_BUNDLE_DIR", None)
@@ -152,7 +156,7 @@ def main(assets):
                                         cwd=work, capture_output=True, text=True, timeout=90)
                 if result.returncode == 0 or "invalid option" not in result.stderr:
                     raise AssertionError(f"CLI errors not propagated: {result}")
-                vm_test(command, guest, guest_env, work)
+                vm_test(command, guest, guest_env, work, firmware)
         print(f"PASS: {target}, {len(guests)} guests, main + dll_main, JNI + ctypes, QMP/TCG/firmware/Unicode")
 
 
